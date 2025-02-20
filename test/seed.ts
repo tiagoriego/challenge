@@ -9,6 +9,10 @@ export const seedDatabase = async (dataSource: DataSource) => {
   const queryRunner = dataSource.createQueryRunner()
   await queryRunner.connect()
 
+  await queryRunner.query('DELETE FROM companies')
+  await queryRunner.query('DELETE FROM contents')
+  await queryRunner.query('DELETE FROM users')
+
   const company1 = queryRunner.manager.create(Company, { name: 'Company A' })
   const company2 = queryRunner.manager.create(Company, { name: 'Company B' })
 
@@ -109,6 +113,19 @@ export const seedDatabase = async (dataSource: DataSource) => {
         cover: 'http://localhost:3000/uploads/video1-cover.jpg',
         type: 'video',
         total_likes: 10,
+        company: createdCompany1,
+      }),
+    ),
+    queryRunner.manager.save(
+      queryRunner.manager.create(Content, {
+        id: '18b9f834-380e-49b5-ad26-217d76dcf5d0',
+        title: 'Documento de Requisitos',
+        description:
+          'Este arquivo contém todas as informações necessárias para o desenvolvimento do software ABC.',
+        url: 'http://localhost:3000/uploads/doc_req.docx',
+        cover: 'http://localhost:3000/uploads/doc_req-cover.png',
+        type: 'text',
+        total_likes: 5,
         company: createdCompany1,
       }),
     ),

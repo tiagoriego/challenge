@@ -9,11 +9,19 @@ import {
 } from '@nestjs/common'
 import { ContentRepository } from 'src/content/repository'
 import { ProvisionDto } from 'src/content/dto'
+import { Content } from 'src/content/entity'
+import {
+  PROVISION_DEFAULT_LINK,
+  PROVISION_EXPIRATION_TIME_LINK_IN_SECONDS,
+  PROVISION_FORMAT,
+  PROVISION_LIST_TYPE,
+  PROVISION_TYPE,
+} from 'src/constants'
 
 @Injectable()
 export class ContentService {
   private readonly logger = new Logger(ContentService.name)
-  private readonly expirationTime = 3600 // 1 hour
+  private readonly expirationTime = PROVISION_EXPIRATION_TIME_LINK_IN_SECONDS
 
   constructor(private readonly contentRepository: ContentRepository) {}
 
@@ -24,10 +32,10 @@ export class ContentService {
     }
 
     this.logger.log(`Provisioning content for id=${contentId}`)
-    let content
+    let content: Content | null
 
     try {
-      content = await this.contentRepository.findOne(contentId)
+      content = await this.contentRepository.findById(contentId)
     } catch (error) {
       this.logger.error(`Database error while fetching content: ${error}`)
       throw new NotFoundException(`Database error: ${error}`)
@@ -54,85 +62,142 @@ export class ContentService {
       throw new BadRequestException('Content type is missing')
     }
 
-    if (['pdf', 'image', 'video', 'link'].includes(content.type)) {
+    if (PROVISION_LIST_TYPE.includes(content.type as PROVISION_TYPE)) {
+      const provisionResult = new ProvisionDto()
+
+      provisionResult.id = content.id
+      provisionResult.title = content.title
+      provisionResult.cover = content.cover
+      provisionResult.created_at = content.created_at
+      provisionResult.description = content.description
+      provisionResult.total_likes = content.total_likes
+
       switch (content.type) {
-        case 'pdf':
-          return {
-            id: content.id,
-            title: content.title,
-            cover: content.cover,
-            created_at: content.created_at,
-            description: content.description,
-            total_likes: content.total_likes,
-            type: 'pdf',
-            url,
-            allow_download: true,
-            is_embeddable: false,
-            format: 'pdf',
-            bytes,
-            metadata: {
-              author: 'Unknown',
-              pages: Math.floor(bytes / 50000) || 1,
-              encrypted: false,
-            },
+        case PROVISION_TYPE.PDF:
+          provisionResult.type = PROVISION_TYPE.PDF
+          provisionResult.url = url
+          provisionResult.allow_download = true
+          provisionResult.is_embeddable = false
+          provisionResult.format = PROVISION_FORMAT.PDF
+          provisionResult.bytes = bytes
+          provisionResult.metadata = {
+            ...this.getMetadataPDF(bytes),
           }
-        case 'image':
-          return {
-            id: content.id,
-            title: content.title,
-            cover: content.cover,
-            created_at: content.created_at,
-            description: content.description,
-            total_likes: content.total_likes,
-            type: 'image',
-            url,
-            allow_download: true,
-            is_embeddable: true,
-            format: path.extname(content.url || '').slice(1) || 'jpg',
-            bytes,
-            metadata: { resolution: '1920x1080', aspect_ratio: '16:9' },
+          break
+        case PROVISION_TYPE.IMAGE:
+          provisionResult.type = PROVISION_TYPE.IMAGE
+          provisionResult.url = url
+          provisionResult.allow_download = true
+          provisionResult.is_embeddable = true
+          provisionResult.format = path.extname(content.url || '').slice(1) || PROVISION_FORMAT.JPEG
+          provisionResult.bytes = bytes
+          provisionResult.metadata = {
+            ...this.getMetadaIMAGE(),
           }
-        case 'video':
-          return {
-            id: content.id,
-            title: content.title,
-            cover: content.cover,
-            created_at: content.created_at,
-            description: content.description,
-            total_likes: content.total_likes,
-            type: 'video',
-            url,
-            allow_download: false,
-            is_embeddable: true,
-            format: path.extname(content.url || '').slice(1) || 'mp4',
-            bytes,
-            metadata: { duration: Math.floor(bytes / 100000) || 10, resolution: '1080p' },
+          break
+        case PROVISION_TYPE.VIDEO:
+          provisionResult.type = PROVISION_TYPE.VIDEO
+          provisionResult.url = url
+          provisionResult.allow_download = false
+          provisionResult.is_embeddable = true
+          provisionResult.format = path.extname(content.url || '').slice(1) || PROVISION_FORMAT.MP4
+          provisionResult.bytes = bytes
+          provisionResult.metadata = {
+            ...this.getMetadaVIDEO(bytes),
           }
-        case 'link':
-          return {
-            id: content.id,
-            title: content.title,
-            cover: content.cover,
-            created_at: content.created_at,
-            description: content.description,
-            total_likes: content.total_likes,
-            type: 'link',
-            url: content.url || 'http://default.com',
-            allow_download: false,
-            is_embeddable: true,
-            format: null,
-            bytes: 0,
-            metadata: { trusted: content.url?.includes('https') || false },
+          break
+        case PROVISION_TYPE.LINK:
+          provisionResult.type = PROVISION_TYPE.LINK
+          provisionResult.url = content.url || PROVISION_DEFAULT_LINK
+          provisionResult.allow_download = false
+          provisionResult.is_embeddable = true
+          provisionResult.format = null
+          provisionResult.bytes = 0
+          provisionResult.metadata = {
+            ...this.getMetadataLINK(content.url),
           }
+          break
+        case PROVISION_TYPE.TEXT:
+          provisionResult.type = PROVISION_TYPE.TEXT
+          provisionResult.url = url
+          provisionResult.allow_download = true
+          provisionResult.is_embeddable = false
+          provisionResult.format = path.extname(content.url || '').slice(1) || PROVISION_FORMAT.TXT
+          provisionResult.bytes = bytes
+          provisionResult.metadata = {
+            ...this.getMetadaTXT(bytes),
+          }
+          break
       }
+
+      return provisionResult
     }
 
     this.logger.warn(`Unsupported content type for ID=${contentId}, type=${content.type}`)
     throw new BadRequestException(`Unsupported content type: ${content.type}`)
   }
 
-  private generateSignedUrl(originalUrl: string): string {
+  generateSignedUrl(originalUrl: string): string {
     const expires = Math.floor(Date.now() / 1000) + this.expirationTime
     return `${originalUrl}?expires=${expires}&signature=${Math.random().toString(36).substring(7)}`
+  }
+
+  /**
+   * Metadata PDF.
+   * @param bytes bytes of file
+   * @returns
+   */
+  getMetadataPDF = (bytes: number) => {
+    return {
+      author: 'Unknown',
+      pages: Math.floor(bytes / 50000) || 1,
+      encrypted: false,
+    }
+  }
+
+  /**
+   * Metadata IMAGE.
+   */
+  getMetadaIMAGE = () => {
+    return {
+      resolution: '1920x1080',
+      aspect_ratio: '16:9',
+    }
+  }
+
+  /**
+   * Metadata Video.
+   * @param bytes bytes of file
+   * @returns
+   */
+  getMetadaVIDEO = (bytes: number) => {
+    return {
+      duration: Math.floor(bytes / 100000) || 10,
+      resolution: '1080p',
+    }
+  }
+
+  /**
+   * Metadata Link.
+   * @param url String
+   * @returns
+   */
+  getMetadataLINK = (url: string) => {
+    return {
+      trusted: url?.includes('https') || false,
+    }
+  }
+
+  /**
+   * Metadata TXT.
+   * @param bytes bytes of file
+   * @returns
+   */
+  getMetadaTXT = (bytes: number) => {
+    return {
+      author: 'Unknown',
+      pages: Math.floor(bytes / 50000) || 1,
+      encrypted: false,
+    }
   }
 }

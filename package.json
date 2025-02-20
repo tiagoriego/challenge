@@ -16,7 +16,8 @@
     "db:seed": "NODE_PATH=. ts-node test/seed.ts",
     "db:drop": "NODE_ENV=development NODE_PATH=. npm run build && typeorm schema:drop -d dist/database/data-source.database.js",
     "lint": "eslint .",
-    "test": "NODE_PATH=. jest"
+    "test": "NODE_PATH=. jest",
+    "test:e2e": "NODE_PATH=. jest --config ./jest-e2e.json"
   },
   "dependencies": {
     "@nestjs/apollo": "^13.0.2",
