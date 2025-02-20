@@ -75,4 +75,4 @@ IMPL 05:
 
 IMPL 06:
 
-- Adicionei mais uma linha de inserção no arquivo `seed.ts` para contemplar o documento do tipo texto para testes a limpeza das tabelas.
+- Adicionei mais uma linha de inserção no arquivo `seed.ts` para contemplar o documento do tipo texto para testes e a limpeza das tabelas.
