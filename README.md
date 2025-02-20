@@ -67,7 +67,7 @@ REFC/IMPL 02:
 
 REFC 04:
 
-- Devido as alterações foi necessário mexer em alguns testes modificando ou adicionando novos métodos para manter o covarage em até 80%.
+- Devido as alterações foi necessário mexer em alguns testes modificando ou adicionando novos métodos para manter o covarage no mínimo 80%.
 
 IMPL 05:
 
